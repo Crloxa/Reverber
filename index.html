@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reverber · 0.8倍速混响</title>
+<link rel="stylesheet" href="vendor/nouislider.min.css">
+<style>
+  :root {
+    --bg1: #0a0a0a;
+    --bg2: #161616;
+    --card: rgba(255, 255, 255, 0.04);
+    --border: rgba(255, 255, 255, 0.09);
+    --text: #f4f2ec;
+    --muted: #8f8d88;
+    --accent: #cdb78e;
+    --accent2: #a89068;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .wrap { width: 100%; max-width: 560px; }
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 {
+    font-size: 30px; letter-spacing: 2px; font-weight: 700;
+    background: linear-gradient(90deg, #f0e7cd, #b39a6a);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  header p { color: var(--muted); margin-top: 6px; font-size: 14px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  #dropZone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 34px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    color: var(--muted);
+  }
+  #dropZone:hover, #dropZone.drag { border-color: var(--accent); background: rgba(205, 183, 142, 0.08); }
+  #dropZone .big { font-size: 34px; margin-bottom: 8px; }
+  #fileInfo { font-size: 12px; margin-top: 6px; color: var(--muted); }
+  #fileName { color: var(--text); font-size: 15px; font-weight: 600; }
+
+  .ctrl { margin-bottom: 16px; }
+  .ctrl:last-child { margin-bottom: 0; }
+  .ctrl-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .ctrl-head label { font-size: 14px; color: var(--text); }
+  .ctrl-head .val { font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+  /* noUiSlider 深色主题 —— 用真实 DOM(轨道+把手 div)渲染，
+     不依赖 ::-webkit-slider-thumb 等伪元素，任何浏览器都可见可拖 */
+  .slider.noUi-target {
+    height: 8px;
+    margin: 10px 0 2px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: none;
+  }
+  .noUi-connect {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 4px;
+  }
+  .noUi-horizontal .noUi-handle {
+    width: 20px; height: 20px;
+    right: -10px; top: -6px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    cursor: grab;
+  }
+  .noUi-horizontal .noUi-handle:active { cursor: grabbing; }
+  .noUi-handle:before, .noUi-handle:after { display: none; }
+  .noUi-touch-area { cursor: grab; }
+
+  .mode-row { display: flex; gap: 10px; }
+  .mode-row label {
+    flex: 1; text-align: center; padding: 10px 0; border-radius: 10px;
+    border: 1px solid var(--border); cursor: pointer; font-size: 14px;
+    transition: all .15s; color: var(--muted); user-select: none;
+  }
+  .mode-row input { display: none; }
+  .mode-row label:has(input:checked) {
+    border-color: var(--accent); color: var(--text);
+    background: rgba(205, 183, 142, 0.15);
+  }
+  .mode-row small { display: block; font-size: 11px; opacity: .7; margin-top: 2px; }
+
+  .actions { display: flex; align-items: center; gap: 10px; }
+  button {
+    padding: 13px 0; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 600; cursor: pointer; color: #191613;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    transition: opacity .15s, transform .05s;
+  }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .actions #playPauseBtn { flex: 1.2; }
+  .actions #stopBtn { flex: 0.8; background: transparent; border: 1px solid rgba(244, 242, 236, 0.4); color: var(--text); }
+  .actions #exportBtn { flex: 1; }
+  #format {
+    padding: 11px 10px; border-radius: 10px; border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.06); color: var(--text); font-size: 14px;
+    cursor: pointer; outline: none;
+  }
+  #format:hover { border-color: var(--accent); }
+
+  #status { margin-top: 14px; font-size: 13px; color: var(--muted); text-align: center; min-height: 18px; }
+  #status.error { color: #ec948b; }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>REVERBER</h1>
+    <p>0.8倍速 · 混响 · 低频增强 —— 全部可调，纯本地处理，不上传任何文件</p>
+  </header>
+
+  <div id="dropZone">
+    <div class="big">🎵</div>
+    <div>点击选择或拖拽音频文件到这里</div>
+    <div id="fileName">&nbsp;</div>
+    <div id="fileInfo"></div>
+  </div>
+  <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,.aac" hidden>
+
+  <div class="card">
+    <div class="ctrl">
+      <div class="ctrl-head"><label>速度</label><span class="val" id="speedValue"></span></div>
+      <div id="speed" class="slider"></div>
+    </div>
+
+    <div class="ctrl">
+      <div class="ctrl-head"><label>音调</label><span class="val" id="pitchValue"></span></div>
+      <div id="pitch" class="slider"></div>
+    </div>
+
+    <div class="ctrl">
+      <div class="ctrl-head"><label>模式</label></div>
+      <div class="mode-row">
+        <label><input type="radio" name="mode" id="modeTape" value="tape" checked><span>磁带慢放<small>速度与音高同步下降</small></span></label>
+        <label><input type="radio" name="mode" id="modePreserve" value="preserve"><span>变速保调<small>节奏变慢、音高不变</small></span></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ctrl">
+      <div class="ctrl-head"><label>混响 · 房间大小</label><span class="val" id="reverbSizeValue"></span></div>
+      <div id="reverbSize" class="slider"></div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-head"><label>混响 · 干湿比</label><span class="val" id="reverbMixValue"></span></div>
+      <div id="reverbMix" class="slider"></div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-head"><label>低频增强 · 增益</label><span class="val" id="bassGainValue"></span></div>
+      <div id="bassGain" class="slider"></div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-head"><label>低频增强 · 频率</label><span class="val" id="bassFreqValue"></span></div>
+      <div id="bassFreq" class="slider"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ctrl">
+      <div class="ctrl-head"><label>播放进度</label><span class="val" id="seekTime">0:00 / 0:00</span></div>
+      <div id="seek" class="slider seek"></div>
+    </div>
+    <div class="actions">
+      <button id="playPauseBtn" disabled>▶ 播放</button>
+      <button id="stopBtn" disabled>■ 停止</button>
+      <select id="format" title="导出格式">
+        <option value="wav">WAV</option>
+        <option value="mp3" selected>MP3</option>
+      </select>
+      <button id="exportBtn" disabled>导出</button>
+    </div>
+  </div>
+
+  <div id="status"></div>
+  <footer>全部处理在浏览器本地完成 · Web Audio API · 可导出 WAV / MP3 · 无需安装</footer>
+</div>
+
+<script src="vendor/nouislider.min.js"></script>
+<script src="vendor/soundtouch.global.js"></script>
+<script src="vendor/lame.min.js"></script>
+<script src="js/wav-encoder.js"></script>
+<script src="js/audio-engine.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
